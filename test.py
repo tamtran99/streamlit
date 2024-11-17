@@ -1,10 +1,8 @@
+import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output
-from flask_ngrok import run_with_ngrok
 import random
 import string
-
 
 # Tạo dataset
 data = {
@@ -25,36 +23,23 @@ unique_customers = df["customer_id"].unique()
 # Chuyển thành danh sách options cho Dropdown
 customer_options = [{"label": customer, "value": customer} for customer in unique_customers]
 
-# Khởi tạo ứng dụng Dash
-app = Dash(__name__)
+# Streamlit Layout
+st.title("Filter Chart by Customer ID")
 
-# Kết nối ngrok
-run_with_ngrok(app)
-
-# Layout của ứng dụng
-app.layout = html.Div([
-    html.H1("Filter Chart by Customer ID"),
-    dcc.Dropdown(
-        id="customer_id_dropdown",
-        options=customer_options,
-        placeholder="Select Customer ID",
-        style={"width": "50%"}
-    ),
-    dcc.Graph(id="activity_chart")
-])
-
-# Callback để cập nhật chart dựa trên customer_id
-@app.callback(
-    Output("activity_chart", "figure"),
-    [Input("customer_id_dropdown", "value")]
+# Dropdown để chọn customer_id
+customer_id = st.selectbox(
+    "Select Customer ID",
+    options=[""] + list(unique_customers),  # Thêm một lựa chọn trống cho "all"
+    index=0
 )
+
+# Hàm để cập nhật chart
 def update_chart(customer_id):
-    # Kiểm tra nếu "all" được chọn hoặc không có giá trị nào
-    if not customer_id or customer_id == "all":
-        return go.Figure()
+    # Kiểm tra nếu không có giá trị customer_id (tức là chọn "all")
+    if not customer_id:
+        filtered_df = df
     else:
         filtered_df = df[df['customer_id'] == customer_id]  # Lọc dữ liệu theo customer_id
-        show_labels = True  # Hiển thị nhãn
 
     # Tạo chart
     fig = go.Figure()
@@ -62,7 +47,7 @@ def update_chart(customer_id):
         go.Scatter(
             x=filtered_df['Date'],
             y=filtered_df['Type_Numeric'],
-            mode="markers+lines" if not show_labels else "markers+text+lines",
+            mode="markers+lines",
             text=filtered_df['Activity'],
             textposition="top center",
             marker=dict(
@@ -101,9 +86,8 @@ def update_chart(customer_id):
         height=600,
         showlegend=False
     )
+
     return fig
 
-# Chạy ứng dụng và in link ngrok
-if __name__ == '__main__':
-    # Start the app and get the URL from ngrok
-    app.run_server()  # Chạy server và in link
+# Cập nhật chart dựa trên lựa chọn customer_id
+st.plotly_chart(update_chart(customer_id))
