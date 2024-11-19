@@ -1,0 +1,1 @@
+print("KHOA MỘT LẰN")
