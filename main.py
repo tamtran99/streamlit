@@ -18,30 +18,34 @@ df = pd.DataFrame(data)
 type_mapping = {"active": 2, "inactive": 1, "undefined": 0}
 df['Type_Numeric'] = df['Type'].map(type_mapping)
 
-# Get unique customers
-unique_customers = df["customer_id"].unique()
-
 # Sort date and customer_id
 df = df.sort_values(by=['customer_id', 'Date'])
+
 
 # Function to generate product(segments) column
 def assign_segment_based_on_date(group):
     # Sort date
     group = group.sort_values('Date')
     num_days = len(group)
-    group['Segment'] = pd.cut(range(num_days), bins=3, labels=[0, 1, 2])  # Assign segments based on date range
+    bin_edges = pd.cut(range(num_days), bins=3, labels=[0, 1, 2]).categories
+    group['Segment'] = pd.cut(range(num_days), bins=3, labels=[0, 1, 2])
+
     return group
 
+
+# Final data
 df = df.groupby('customer_id').apply(assign_segment_based_on_date)
 
+# Get unique customers
+unique_customers = df["customer_id"].unique()
+
 # Streamlit Layout
-st.title("Filter Chart by Customer ID")
 st.title("Filter Chart by Customer ID and Date")
 
-# Dropdown to select customer_id
+# Dropdown customer_id -> always choose 1 customer
 customer_id = st.selectbox(
     "Select Customer ID",
-    options=[""] + list(unique_customers),  # Add a blank option for "all"
+    options=list(unique_customers),
     index=0  # default customer
 )
 
@@ -53,21 +57,30 @@ date_range = st.date_input(
     max_value=df['Date'].max()
 )
 
+
 # Function to update chart
 def update_chart(customer_id, date_range):
-    # Filter by date
+    # Filter Date
     filtered_df = df[(df['Date'] >= pd.Timestamp(date_range[0])) & (df['Date'] <= pd.Timestamp(date_range[1]))]
 
-    # Filter by customer_id if selected
-    if customer_id:
-        filtered_df = filtered_df[filtered_df['customer_id'] == customer_id]
-    
-    # Show label Activity when is_key_event == True
-    filtered_df['Label'] = filtered_df.apply(lambda row: row['Activity'] if row['is_key_event'] else "", axis=1)
+    # Filter customer_id
+    filtered_df = filtered_df[filtered_df['customer_id'] == customer_id]
+
+    # Check if user selects "All" (from rangeselector)
+    rangeselector_state = False  # Default to False (not "All")
+
+    # Get the step from rangeselector (which can be "1w", "1m", "3m", or "all")
+    if 'step' in st.session_state and st.session_state.step == 'all':
+        rangeselector_state = True
+
+    # Show label Activity when is_key_event == True (if "All" is not selected, show all)
+    if rangeselector_state:
+        filtered_df['Label'] = filtered_df.apply(lambda row: row['Activity'] if row['is_key_event'] else "", axis=1)
+    else:
+        filtered_df['Label'] = filtered_df['Activity']  # Show all activities
 
     # Create chart
     fig = go.Figure()
-
     fig.add_trace(
         go.Scatter(
             x=filtered_df['Date'],
@@ -80,13 +93,13 @@ def update_chart(customer_id, date_range):
                 color=random.choices(["red", "blue"], k=len(filtered_df))
             ),
             line=dict(
-                color="#333333",  # Dark gray line color
-                width=2  # Line width
+                color="#333333",
+                width=2
             )
         )
     )
 
-    # Background color based on Segment
+    # Background color depend on Product (segment) column
     colors = ["#FF6347", "#32CD32", "#1E90FF"]  # Background color
     segments = filtered_df['Segment'].unique()
 
@@ -108,35 +121,35 @@ def update_chart(customer_id, date_range):
                 line_width=0,
             )
 
-    # Configure y-axis
+    # Config y-axis
     fig.update_yaxes(
         tickvals=[0, 1, 2],
         ticktext=["undefined", "inactive", "active"]
     )
 
-    # Configure layout
+    # Config layout
     fig.update_layout(
-        title=f"Activity Chart for Customer: {customer_id}" if customer_id else "Activity Chart",
+        title=f"Activity Chart for Customer: {customer_id}",
         xaxis_title="Date",
         yaxis_title="Segment",
         xaxis=dict(
             rangeslider=dict(visible=True),
-            rangeselector=dict(  # Like Power BI
+            rangeselector=dict(
                 buttons=[
                     dict(count=7, label="1w", step="day", stepmode="backward"),
                     dict(count=30, label="1m", step="day", stepmode="backward"),
                     dict(count=90, label="3m", step="day", stepmode="backward"),
                     dict(step="all", label="All")
                 ]
-            ),
+            )
         ),
-        height=600,
+        height=800,
         width=1200,
         showlegend=False
     )
 
     return fig
 
-# Display chart
-st.plotly_chart(update_chart(customer_id, date_range))
 
+if __name__ == "__main__":
+    st.plotly_chart(update_chart(customer_id, date_range))
